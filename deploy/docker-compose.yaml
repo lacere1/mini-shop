@@ -1,0 +1,93 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: minishop
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth:
+    build: ../apps/auth-service
+    env_file: ../apps/auth-service/.env.example
+    environment:
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASSWORD: devpass
+      DB_NAME: minishop
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+  catalog:
+    build: ../apps/catalog-service
+    env_file: ../apps/catalog-service/.env.example
+    environment:
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASSWORD: devpass
+      DB_NAME: minishop
+      JWT_SECRET: supersecret
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+
+  orders:
+    build: ../apps/orders-service
+    env_file: ../apps/orders-service/.env.example
+    environment:
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASSWORD: devpass
+      DB_NAME: minishop
+      JWT_SECRET: supersecret
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3003:3003"
+
+  payments:
+    build: ../apps/payment-service
+    env_file: ../apps/payment-service/.env
+    ports:
+      - "3004:3004"
+
+  api-gateway:
+    build: ../apps/api-gateway
+    env_file: ../apps/api-gateway/.env.example
+    environment:
+      AUTH_URL: http://auth:3000
+      CATALOG_URL: http://catalog:3001
+      ORDERS_URL: http://orders:3003
+      PAYMENTS_URL: http://payments:3004
+    depends_on:
+      - auth
+      - catalog
+      - orders
+      - payments
+    ports:
+      - "8080:8080"
+
+  web:
+    build: ../apps/web-frontend
+    env_file: ../apps/web-frontend/.env.example
+    environment:
+      API_URL: http://api-gateway:8080
+      AUTH_URL: http://auth:3000
+    depends_on:
+      - api-gateway
+    ports:
+      - "3002:3000"
